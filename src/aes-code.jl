@@ -4,6 +4,7 @@ global const Nks = [4, 6, 8]
 global const Nbs = [4, 4, 4]
 global const Nb = 4
 global const Nrs = [10, 12, 14]
+global const ToyNrs = 4 # add 4 round cipher
 global const WORDLENGTH = 4
 
 global const SBOX = [
@@ -75,15 +76,15 @@ end
 # The returned plaintext is a string consisting of only hexadecimal
 # characters.
 function AESDecrypt(cipher::String, key::String)
-	bytes2hex(AESDecrypt(hex2bytes(cipher), hex2bytes(key)))
+	bytes2hex(AESDecrypt(hex2bytes(cipher), hex2bytes(key), toy))
 end
 
 # Encrypts the given plaintext block using the given key
 # and returns the resulting ciphertext.
 # Both the plaintext and key are arrays holding bytes of type UInt8.
 # The returned ciphertext is an array holding bytes of type UInt8.
-function AESEncrypt(plain::Array{UInt8, 1}, key::Array{UInt8, 1})
-	(w, Nr) = AEScrypt(plain, key)
+function AESEncrypt(plain::Array{UInt8, 1}, key::Array{UInt8, 1}, toy::Bool = false)
+	(w, Nr) = AEScrypt(plain, key, toy)
 	return AESCipher(plain, w, Nr)
 end
 
@@ -91,37 +92,42 @@ end
 # and returns the resulting plaintext.
 # Both the ciphertext and key are arrays holding bytes of type UInt8.
 # The returned plaintext is an array holding bytes of type UInt8.
-function AESDecrypt(cipher::Array{UInt8, 1}, key::Array{UInt8, 1})
-	(w, Nr) = AEScrypt(cipher, key)
+function AESDecrypt(cipher::Array{UInt8, 1}, key::Array{UInt8, 1}, toy::Bool = false)
+	(w, Nr) = AEScrypt(cipher, key, toy)
 	return AESInvCipher(cipher, w, Nr)
 end
 
 # General function for checking the parameters of the encryption/decryption
 # functions and expanding the key.
-function AEScrypt(input::Array{UInt8, 1}, key::Array{UInt8, 1})
+function AEScrypt(input::Array{UInt8, 1}, key::Array{UInt8, 1}, toy::Bool = false)
 	if length(input) != (WORDLENGTH * Nb)
 		error("input must be a 16-byte block!")
 	end
-	(Nk, Nr) = AESParameters(key)
+	(Nk, Nr) = AESParameters(key, toy)
 	w = KeyExpansion(key, Nk, Nr)
 	return (w, Nr)
 end
 
 # Return a tuple (Nk, Nr) where Nk is the number of key blocks
 # and Nr is the number of rounds for the key size.
-function AESParameters(key::Array{UInt8, 1})
+# modded input toy for a small 4 round AES 
+function AESParameters(key::Array{UInt8, 1}, toy::Bool = false)
 	if mod(length(key), WORDLENGTH) != 0
 		error("the key length must be a multiple of four!")
 	end
 
 	Nk = div(length(key), WORDLENGTH)
 	i = first(indexin([Nk], Nks))
-
+	if toy 
+		i = 1
+	end
 	if i == 0
 		error("key length is non-standard!")
 	end
-
 	Nr = Nrs[i]
+	if toy 
+		Nr = ToyNrs
+	end
 	return (Nk, Nr)
 end
 
@@ -185,6 +191,19 @@ function AESCipher(inBytes::Array{UInt8, 1}, w::Array{UInt8, 1}, Nr::Int)
 	ShiftRows(state)
 	AddRoundKey(state, w[(Nr * Nb * WORDLENGTH + 1):((Nr + 1) * Nb * WORDLENGTH)])
 
+	return state
+end
+
+# Compute one specific InvRnd from the roundkey stored in w 
+function AESLastRndInv(inBytes::Array{UInt8, 1}, w::Array{UInt8, 1})
+	@assert(WORDLENGTH == Nb)
+	@assert(length(inBytes) == (WORDLENGTH * Nb))
+	@assert(length(w) == (WORDLENGTH * Nb))
+
+	state = copy(inBytes)
+	AddRoundKey(state, w[1:(Nb * WORDLENGTH)])
+	InvShiftRows(state)
+	InvSubBytes(state)
 	return state
 end
 

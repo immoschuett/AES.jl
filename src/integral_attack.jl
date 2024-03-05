@@ -4,6 +4,7 @@ export AESEncrypt, AESDecrypt, AESParameters
 export AESECB, AESCBC, AESCFB, AESOFB, AESCTR
 end
 
+
 # we use a 4 round toy cipher (4 round AES) ! 
 m = UInt8.(b"0123456789abcdef")
 const oraclekey = UInt8.(b"key2key1key1key1")
@@ -67,18 +68,19 @@ function recover_byte(i=1, Total_message_cnt=0)
     #return Key_Candidates
     return Key_Candidates[1][i], Total_message_cnt
 end
-
-lastroundkey = modAES.KeyExpansion(oraclekey, 4, 4)[end-15:end]
-byte = 1
-recover_byte(byte)
-recover_byte(byte) == lastroundkey[byte]
-recover_roundkey() == lastroundkey
 function recover_roundkey()
     Keydata = unzip([recover_byte(i) for i = 1:16])
     println("Number of C/M Pairs used: ", sum(Keydata[2]), "   #repetitions: ", Int(sum(Keydata[2]) / 256 - 16))
     return Keydata[1]
 end
+lastroundkey = modAES.KeyExpansion(oraclekey, 4, 4)[end-15:end]
+byte = 1
+recover_byte(byte)
+recover_byte(byte)[1] == lastroundkey[byte]
+recover_roundkey() == lastroundkey
 
+
+using Test
 @testset "modAES" begin
     @test modAES.AESDecrypt(modAES.AESEncrypt(m, oraclekey, true), oraclekey, true) == m
     @test recover_roundkey() == lastroundkey
